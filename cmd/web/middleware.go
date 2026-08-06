@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 )
@@ -35,5 +38,30 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 		}()
 
 		next.ServeHTTP(w, r)
+	})
+}
+
+type contextKey string
+
+const requestId = contextKey("requestId")
+const requestIdHeaderName = "X-Request-ID"
+
+func requestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get(requestIdHeaderName)
+		if id == "" {
+			id = func() string {
+				token := make([]byte, 16)
+				rand.Read(token)
+
+				return hex.EncodeToString(token)
+			}()
+		}
+
+		w.Header().Set(requestIdHeaderName, id)
+
+		ctx := context.WithValue(r.Context(), requestId, id)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
